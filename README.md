@@ -5,7 +5,7 @@
 
 Derouteur uses two sources to be able to be ran directly from a console, without any interface, because I'm to lazy to create one. So it uses an addresses database to select and add waypoints to an initial route and OpenStreetMap to know where else you could go on randomly selected points it will add to the route.
 
-Derouteur also relies on an online instance of OSRM (which is a route calculation feature offered by [http://project-osrm.org/]), so even if you download a lot of data to make it work, you'll also need an Internet connection. Perhaps sometime in the future I'll be working on a local instance to perform this calculation, but that's actually a LOT more complicated than just playing with waypoints.
+Derouteur also relies on an online instance of OSRM (which is a route calculation feature offered by the [project](http://project-osrm.org/)), so even if you download a lot of data to make it work, you'll also need an Internet connection. Perhaps sometime in the future I'll be working on a local instance to perform this calculation, but that's actually a LOT more complicated than just playing with waypoints.
 
 First, you'll set a few parameters to indicate the ideal duration of your trip. Then, you provide your initial waypoints. You can use a route between two or more points as a start or compute a completely random round route by adding twice the same as your departure and arrival. Waypoints are provided by typing the addresses in the console, with a specific syntax that sould be enough for the script to recognize them. If it fails, you can visit OpenStreetMap to look at surrounding addresses numbers; if they exist on the map, they should be recognised by the script, because the BANO database is extracted from OpenStreetMap. Then, you'll let Derouteur work.
 
@@ -19,7 +19,7 @@ At the end of the process, you can visualise the result on a plot window. A `.km
 
 To make Derouteur work, you need to install R first on your computer. You'll also need a few dependencies. My script can install them for you if it detects they are not satisfied. Please not that, if you're running R on Linux, you should rather install them yourself by using packages provided by your distribution. Main depenencies are `tidyverse` and `sf` (they are very common but can take a while to install). I also use `osrm` to compute bike routes.
 
-Please visit the official project webpage to install R: [https://www.r-project.org/]
+Please visit the official project webpage to install R: [https://www.r-project.org/](https://www.r-project.org/)
 
 Once R is installed on your computer, you must first prepare all source data (i.e. points and roads) and then to run the script.
 
@@ -27,8 +27,8 @@ Once R is installed on your computer, you must first prepare all source data (i.
 
 Derouteur needs two main sources:
 
-* an extract from the BANO database (National Addresses Database). Select all the `.csv` files related to the departments you live in or wish to visit on [this webpage][https://bano.openstreetmap.fr/data/]. I'm sorry, this will only work in mainland France :'( Please note that Derouteur takes all of the departments you have downloaded into account when preparing the base, so if you download a lot of them, it can take time to compute. Copy all `.csv` files directly in the "Sources" directory that you might need to create alongside the main "Derouteur" script.
-* an extract from OpenStreetMap to import the road graph. Download OSM Data from [geofabrik.de][https://download.geofabrik.de/] and uncompress each extract in a separate directory inside Routes. For example, if you want to use the programme in Ile-de-France, download the corresponding `.zip` file and uncompress it in an "Ile-de-France" directory inside Sources. The name of the directory does not matter. Derouteur will recognise needed files inside.
+* an extract from the BANO database (National Addresses Database). Select all the `.csv` files related to the departments you live in or wish to visit on [this webpage](https://bano.openstreetmap.fr/data/). I'm sorry, this will only work in mainland France :'( Please note that Derouteur takes all of the departments you have downloaded into account when preparing the base, so if you download a lot of them, it can take time to compute. Copy all `.csv` files directly in the "Sources" directory that you might need to create alongside the main "Derouteur" script.
+* an extract from OpenStreetMap to import the road graph. Download OSM Data from [geofabrik.de](https://download.geofabrik.de/) and uncompress each extract in a separate directory inside Routes. For example, if you want to use the programme in Ile-de-France, download the corresponding `.zip` file and uncompress it in an "Ile-de-France" directory inside Sources. The name of the directory does not matter. Derouteur will recognise needed files inside.
 
 When first launching Derouteur, the script will prepare these sources and convert them to two temporary files named `pool.rds` (containing future waypoints to randomly select) and `bano.rds` (containing addresses). You won't have to regenerate them on each launch, but you will have to repeat this if you download updated versions of both the BANO and/or the OSM extract.
 
