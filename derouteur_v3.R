@@ -4,6 +4,22 @@ rm(list = ls())
 # pour run le script
 # source("derouteur_v3.R", print.eval=T)
 
+# Vérification du paquet crayon à faire avant d'envoyer de la couleur !
+
+if (! "crayon" %in% installed.packages())
+{
+  cat("Paquet crayon manquant\n")
+  cat("Installation directe possible depuis le dépôt R.\n")
+  if (readline(prompt = "Continuer ? (o / n) ") %in% c("o", "O", "y", "Y"))
+  {
+    install.packages("crayon")
+  } else {
+    stop("Programme arrêté : dépendances manquantes.")
+  }
+}
+
+# On peut continuer
+
 cat(crayon::bgBlack(crayon::green("\nProgramme Dérouteur")))
 cat(crayon::silver("\nv3 - mai 2024 - maxime guinepain\n"))
 
