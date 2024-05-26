@@ -373,8 +373,10 @@ while(!satisfait)
     }
     
     # # Retirons toutes les zones déjà trop proches d'un point existant
-    isoPoints = st_buffer(points, dist=rayonEvitement) %>% st_union()
-    iso = st_difference(iso, isoPoints)
+    # isoPoints = st_buffer(points, dist=rayonEvitement) %>% st_union()
+    # iso = st_difference(iso, isoPoints)
+    isoRoute = st_buffer(routeActuelle, dist=rayonEvitement)
+    iso = st_difference(iso, isoRoute)
     
     plot(isochrone, border="red", main = paste0(round(routeActuelle$duration, 0), " min. / ",
                                                 round(routeActuelle$distance, 2), " km"))
