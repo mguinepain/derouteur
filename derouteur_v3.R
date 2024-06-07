@@ -1,6 +1,11 @@
 # Effacement de l'espace de travail
 rm(list = ls()) 
 
+# Initialisation du moteur aléatoire
+# → Si pour une raison ou une autre l'espace de travail a été sauvegardé ou est
+# restauré, on veut malgré tout de nouveaux résultats !
+set.seed(NULL)
+
 # pour run le script
 # source("derouteur_v3.R", print.eval=T)
 
@@ -67,6 +72,17 @@ if (! "osrm" %in% installed.packages())
 library(tidyverse)
 library(sf)
 library(osrm)
+
+# Paramétrage mode ====
+
+# Reste à écrire
+# Pour l'instant, mode = vélo
+
+routeMode = "bike"
+facteurVitesse = 11
+
+# routeMode = "foot"
+# facteurVitesse = 2.9
 
 # Contrôle réinitialisation ====
 
@@ -201,7 +217,6 @@ if (readline("Garder ces paramètres ? (o/n) ") %in% c("n", "N"))
   save(tolerance, file="tolerance.rds")
 }
 
-facteurVitesse=11
 rayonEvitement= facteurVitesse / 12 * 1000
 
 # Sélection des adresses ====
@@ -283,7 +298,7 @@ if (nrow(pointsInit) < 2) { stop("Pas assez d'adresses pour calculer un itinéra
 
 # Itinéraire de départ ====
 
-routeInit = osrmRoute(loc = pointsInit, osrm.profile = "bike")
+routeInit = osrmRoute(loc = pointsInit, osrm.profile = routeMode)
 compteurAppels = compteurAppels+1
 routeInit = st_transform(routeInit, crs=2154)
 
@@ -341,8 +356,13 @@ while(!satisfait)
       segment = tSegments[1,]
     }
     
-    # ... Et sélectionnons à quel point le segment va être interrompu
-    tangente = ifelse(segment$longueur>0, runif(n = 1), .5)
+    intervalleTan = 1.4 # aucune idée de comment il faut régler ça...
+    
+    # Paramètres ajustés pour une distribution semicirculaire de Wigner
+    # Doit approximer la longueur de la tangente disponible où placer le point...
+    # Il faudrait bcp plus de maths et de calculs pour que ce soit équivalent au
+    # niveau des superficies potentielles mais bref
+    tangente = ifelse(segment$longueur>0, rbeta(n = 1, shape1 = 3/2, shape2 = 3/2), .5)
     
     # Quel est notre budget temps ?
     temps = temps - (((segment$longueur / 1000) / facteurVitesse) * 60)
@@ -390,7 +410,7 @@ while(!satisfait)
       pointsIti = unique(st_cast(routeActuelle$geometry, "POINT"))
       
       # Calcul sur le segment
-      segmentReel = osrmRoute(loc = st_cast(segment$geometry, "POINT"), osrm.profile = "bike") %>% st_transform(crs=2154)
+      segmentReel = osrmRoute(loc = st_cast(segment$geometry, "POINT"), osrm.profile = routeMode) %>% st_transform(crs=2154)
       compteurAppels = compteurAppels+1
       
       pointsSegment = unique(st_cast(segmentReel$geometry, "POINT"))
@@ -408,7 +428,8 @@ while(!satisfait)
       
       # Calculons les voronois des points pour ne pas installer le nouveau point
       # dans le voisinage d'un segment déjà existant, au risque de créer des nœuds
-      voronois = st_voronoi(do.call(c, unique(st_cast(routeActuelle$geometry, "POINT")))) |>
+      voronois = st_voronoi(do.call(c, unique(st_cast(routeActuelle$geometry, "POINT"))),
+                            envelope = st_as_sfc(isochrone)) |>
         st_collection_extract() |>
         st_set_crs(st_crs(2154))
       voros = tibble(geometry = voronois) %>%
@@ -449,7 +470,7 @@ while(!satisfait)
         points = nvPoints
         
         # Calculons l'itinéraire avec OSRM
-        routeActuelle = osrmRoute(loc = points, osrm.profile = "bike") %>% st_transform(crs=2154)
+        routeActuelle = osrmRoute(loc = points, osrm.profile = routeMode) %>% st_transform(crs=2154)
         compteurAppels = compteurAppels+1
         
         # Retirons les "pics"
@@ -509,7 +530,7 @@ while(!satisfait)
               st_as_sf() |>
               select(-i)
             
-            routeActuelle = osrmRoute(loc = points, osrm.profile = "bike") %>% st_transform(crs=2154)
+            routeActuelle = osrmRoute(loc = points, osrm.profile = routeMode) %>% st_transform(crs=2154)
             compteurAppels = compteurAppels +1
             
           } else {
@@ -529,7 +550,7 @@ while(!satisfait)
   cat("\nListe des adresses composant l'itinéraire proposé :")
   cat(listeAdresses(points))
   
-  nouvelleRoute = osrmRoute(loc = points, osrm.profile = "bike") %>% st_transform(crs=2154)
+  nouvelleRoute = osrmRoute(loc = points, osrm.profile = routeMode) %>% st_transform(crs=2154)
   plot(isochrone, border="red", main = paste0(round(nouvelleRoute$duration), " mn / ",
                                               round(nouvelleRoute$distance, 2), " km"))
   compteurAppels = compteurAppels + 1
