@@ -1,0 +1,20 @@
+# Ne pas commiter les sources
+Sources
+bano.rds
+pool.rds
+duree.rds
+points.rds
+tolerance.rds
+
+# Ne pas commiter les données perso
+Routes
+
+# Fichiers temporaires de R
+.RData
+.Rhistory
+
+# Anciennes versions
+BANO.qgz
+derouteur_v1.R
+derouteur_v2.R
+bano_uni.txt
