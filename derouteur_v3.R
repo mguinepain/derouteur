@@ -79,7 +79,7 @@ library(osrm)
 # Pour l'instant, mode = vélo
 
 routeMode = "bike"
-facteurVitesse = 11
+facteurVitesse = 12
 
 # routeMode = "foot"
 # facteurVitesse = 2.9
