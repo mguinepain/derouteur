@@ -1,5 +1,6 @@
 # Effacement de l'espace de travail
 rm(list = ls()) 
+gc(full = T)
 
 # Initialisation du moteur aléatoire
 # → Si pour une raison ou une autre l'espace de travail a été sauvegardé ou est
@@ -26,7 +27,7 @@ if (! "crayon" %in% installed.packages())
 # On peut continuer
 
 cat(crayon::bgBlack(crayon::green("\nProgramme Dérouteur")))
-cat(crayon::silver("\nv3 - mai 2024 - maxime guinepain\n"))
+cat(crayon::silver("\nv3.1 - août 2024 - maxime guinepain\n"))
 
 # Chargement des dépendances et vérification/installation préalable ====
 # (pour rendre le programme user friendly même pour les newbies de R)
@@ -69,20 +70,11 @@ if (! "osrm" %in% installed.packages())
   }
 }
 
+options(tidyverse.quiet = TRUE)
 library(tidyverse)
 library(sf)
 library(osrm)
 
-# Paramétrage mode ====
-
-# Reste à écrire
-# Pour l'instant, mode = vélo
-
-routeMode = "bike"
-facteurVitesse = 12
-
-# routeMode = "foot"
-# facteurVitesse = 2.9
 
 # Contrôle réinitialisation ====
 
@@ -205,24 +197,44 @@ if (file.exists("pool.rds")) { load("pool.rds") } else
 compteurAppels = 0
 
 if (file.exists("duree.rds")) { load("duree.rds")} else { duree = 60 }
-if (file.exists("tolerance.rds")) { load("tolerance.rds")} else { tolerance = 10 ; duree = duree - tolerance/2 }
+if (file.exists("tolerance.rds")) { load("tolerance.rds")} else { tolerance = 4 ; duree = duree - tolerance/2 }
+if (file.exists("mode.rds")) { load("mode.rds") } else { modeT = "vélo" }
 
-cat("\nParamètres actuels : durée de", duree + tolerance/2, "min.")
+cat("\nParamètres actuels : durée de", duree + tolerance/2, "min, mode =", modeT)
 if (readline("Garder ces paramètres ? (o/n) ") %in% c("n", "N"))
 {
   duree = readline("Durée de l'itinéraire en minutes ? ") %>% as.double()
-  tolerance = 10
+  tolerance = 4
   duree = duree - (tolerance/2)
   save(duree, file="duree.rds")
   save(tolerance, file="tolerance.rds")
+  
+  modeT = readline("Mode de transport ? [vélo/v, marche/m] ")
+  if (!modeT %in% c("vélo", "marche", "v", "m")) { stop("Mode non reconnu.") }
+  if (modeT == "v") { modeT = "vélo" }
+  if (modeT == "m") { modeT = "marche" }
+  save(modeT, file = "mode.rds")
 }
 
+# Paramétrage mode ====
+
+if(modeT == "vélo")
+{
+  routeMode = "bike"
+  facteurVitesse = 12.5
+}
+if(modeT == "marche")
+{
+  routeMode = "foot"
+  facteurVitesse = 3.5
+}
+
+# Paramètre de vitesse à ajuster...
 rayonEvitement= facteurVitesse / 12 * 1000
 
 # Sélection des adresses ====
 
 reset=T
-
 if (file.exists("points.rds")) { 
   load("points.rds")
   cat("\nPoints déjà paramétrés détectés.")
@@ -260,7 +272,7 @@ if (reset)
         
         if (nrow(pt) == 1) { pointsInit = rbind(pointsInit, pt) ; cat(crayon::green("Adresse acquise !\n")) }
         else {
-          cat(crayon::yellow("Désolé·e, adresse introuvable.\n"))
+          cat(crayon::yellow("Adresse introuvable.\n"))
         }
       }
     } else {
@@ -269,10 +281,7 @@ if (reset)
         quitter = T
         cat(nrow(pointsInit), "adresses entrées !")
         cat(listeAdresses(pointsInit))
-        if (readline("Sauvegarder ? ") %in% c("O", "o", "Y", "y"))
-        {
-          save(pointsInit, file = "points.rds")
-        }
+        save(pointsInit, file = "points.rds")
       }
       if (adresse == "annuler")
       {
@@ -280,7 +289,7 @@ if (reset)
           pointsInit = pointsInit[c(1:nrow(pointsInit)-1),]
           cat("Il reste", nrow(pointsInit), "point(s).\n")
         } else {
-          cat(crayon::yellow("Désolé⋅e, la liste des points est déjà vide.\n"))
+          cat(crayon::yellow("La liste des points est déjà vide.\n"))
         }
       }
       if (adresse == "retour")
@@ -303,11 +312,42 @@ compteurAppels = compteurAppels+1
 routeInit = st_transform(routeInit, crs=2154)
 
 if (routeInit$duration > duree + tolerance) {
-  duree = routeInit$duration * 1.25
+  duree = routeInit$duration * 1.1
   
-  cat(crayon::yellow("La limite fournie est insuffisante.\n"))
-  cat("Limite augmentée à", round(duree), "minutes.\n")
+  cat(crayon::yellow("L'objectif fourni est insuffisant.\n"))
+  cat("Objectif augmenté à", round(duree), "minutes.\n")
 }
+
+# Le "facteur de vitesse" sert à faire les conversions entre la distance euclidienne
+# et la distance réelle que doit parcourir l'utilisateur. Il s'agit donc d'une
+# mesure très variable, qui dépend pour beaucoup du réseau dans le voisinnage.
+# Par ex, si le maillage est très fin, la distance réelle sera proche de la distance
+# euclidienne, mais s'il est très relâché, l'écart peut être important.
+# Pour cette raison, on essaye de moduler le facteur à l'aide de l'estimation
+# d'itinéraire dans un premier temps car cela permet de calculer le coefficient
+# en "conditions réelles" dans la région. Si ce n'est pas possible, on donne
+# un facteur d'autant plus grand que la boucle ne va l'être, car d'expérience
+# c'est ce qui donne le meilleur résultat.
+# Un facteur de vitesse légèrement trop élevé rend la complétion de l'itinéraire
+# trop "facile", ce qui fait calculer trop peu d'étapes intermédiaires et produit
+# des itinéraires peu intéressants. Un facteur de vitesse trop irréaliste (trop
+# bas ou trop élevé) empêche le calcul.
+# Dans la màj de juillet 2024, on commence par calculer un facteur de vitesse bas
+# puis on augmente jusqu'à ce que ça fonctionne si cela s'avère trop bas.
+# Ainsi, on crée des itinéraires avec un plus grand nb d'étapes intermédiaires.
+# Conçu pour le vélo uniquement...
+# facteurVitesse = facteurVitesse + .3 * routeInit$distance
+if (routeInit$distance == 0) { facteurVitesse = facteurVitesse + ((duree/60)*facteurVitesse*.1)  }
+
+cat("Facteur de vitesse de", facteurVitesse)
+
+# Cette fonction a été désactivée. Elle cause trop de soucis. En revanche je laisse
+# l'augmentation automatique pour éviter de tomber sur des problèmes insolubles.
+# if (routeInit$duration / (duree + tolerance) < 1.25)
+# {
+#   facteurVitesse = 1.1 * facteurVitesse
+#   cat("\nBudget temps restreint, facteur vitesse augmenté à", facteurVitesse, "\n")
+# }
 
 isochrones = st_buffer(pointsInit, dist = (((duree/60) * facteurVitesse/2)*1000))
 isochrone <- reduce(isochrones$geometry, st_intersection) %>% st_sfc() %>% st_as_sf(crs= 2154)
@@ -327,6 +367,8 @@ while(!satisfait)
   points = pointsInit
   dureeTraj = routeActuelle$duration
   
+  nbEchecs = 0
+  
   while(dureeTraj < duree)
   {
     # Calculons la route en ligne droite
@@ -345,6 +387,7 @@ while(!satisfait)
     tSegments = mutate(tSegments, poids = ifelse(longueur < 100, 0, longueur))
     
     # Temps total estimé
+    # temps = dureeTraj
     temps = ((sum(tSegments$longueur) / 1000) / facteurVitesse) * 60
     
     # Si on ne part pas d'un seul point (boucle)
@@ -365,6 +408,8 @@ while(!satisfait)
     tangente = ifelse(segment$longueur>0, rbeta(n = 1, shape1 = 3/2, shape2 = 3/2), .5)
     
     # Quel est notre budget temps ?
+    # temps = temps - osrmRoute(loc = st_cast(segment, "POINT"), osrm.profile = routeMode)$duration
+    # compteurAppels = compteurAppels + 1
     temps = temps - (((segment$longueur / 1000) / facteurVitesse) * 60)
     budget = duree - temps + tolerance
     
@@ -372,29 +417,28 @@ while(!satisfait)
     budgetA = budget * tangente
     budgetB = budget * (1-tangente)
     
-    # Calculons à présent dans quelle zone rajouter le point
+    # # Calculons à présent dans quelle zone rajouter le point
     # Add (avril 24) : on s'arrange pour viser les 50-90% les plus éloignés
     # pour faciliter la génération de l'itinéraire (amplitude)
     distA = ((budgetA/60) * facteurVitesse)*1000
     distB = ((budgetB/60) * facteurVitesse)*1000
-    
+
     isoA = st_difference(st_buffer(points[segment$n,], dist = .8 * distA),
                          st_buffer(points[segment$n,], dist = .5 * distA))
     isoB = st_difference(st_buffer(points[segment$n+1,], dist = .8 * distB),
                          st_buffer(points[segment$n+1,], dist = .5 * distB))
-    iso = st_intersection(isoA, isoB)
-    # iso = st_intersection(iso, voro)
     
+    iso = st_intersection(isoA, isoB)
+  
     # On voudrait éviter les retours en arrière
     if(sum(tSegments$poids) > 0)
     {
-      limites180 = st_buffer(segment, dist=((budget*1.5/60) * facteurVitesse)*1000, endCapStyle="FLAT") %>% st_union()
+      rayon = ((budget*1.5/60) * facteurVitesse)*1000
+      limites180 = st_buffer(segment, dist=rayon, endCapStyle="FLAT") %>% st_union()
       iso = st_intersection(iso, limites180)
     }
     
     # # Retirons toutes les zones déjà trop proches d'un point existant
-    # isoPoints = st_buffer(points, dist=rayonEvitement) %>% st_union()
-    # iso = st_difference(iso, isoPoints)
     isoRoute = st_buffer(routeActuelle, dist=rayonEvitement)
     iso = st_difference(iso, isoRoute)
     
@@ -544,6 +588,17 @@ while(!satisfait)
         # Affichons la route
         plot(routeActuelle$geometry, col="green", lty=2, add=T)
       }
+    } else {
+      nbEchecs = nbEchecs + 1
+      
+      
+      if (nbEchecs > 0 & nbEchecs / 10 == as.integer(nbEchecs/10)) {
+        cat("\n", crayon::red(nbEchecs, "échecs"), crayon::yellow("Impossible d'échantillonner les points\n"))
+        facteurVitesse = facteurVitesse + .1
+        cat("Augmentation du facteur de vitesse à", facteurVitesse, "\n")
+      }
+      
+      if (nbEchecs == 149) { stop ("Trop d'échecs. Erreur fatale" )}
     }
   }
   
@@ -569,14 +624,65 @@ while(!satisfait)
 
 cat(paste0(compteurAppels, " appels envoyés à OSRM\n"))
 
-nomSortie = readline("Nom à spécifier pour la sortie (sinon nommage par défaut) ? ")
+# Pour ne pas avoir de pbs de doublons de noms
+if(file.exists(chemin))
+{
+  i = 2
+  while(file.exists(paste0(nomSortie, " (", i, ").kml")))
+  {
+    i = i + 1
+  }
+  chemin = paste0(nomSortie, " (", i, ").kml")
+}
+
+st_write(routeActuelle, dsn = chemin, driver = "LIBKML", layer = "route")
+st_write(pts, dsn = chemin, driver = "LIBKML", layer = "wp")
+
+if (modeT == "vélo")
+{
+  # Préparation URL Géovélo
+  pts = st_transform(points, crs=4326)
+  pts$X = st_coordinates(pts$geometry)[,1]
+  pts$Y = st_coordinates(pts$geometry)[,2]
+  pts$coords = paste0(pts$X, "%2C", pts$Y)
+  
+  # Si 2 points seulement
+  if (nrow(pts) == 2)
+  { lienGeovelo = paste0("https://geovelo.app/fr/route/?bike-type=own&e-bike=false&from=",
+                         pts[1,]$coords,
+                         "&to=",
+                         pts[2,]$coords) }
+  if (nrow(pts) > 2)
+  { lienGeovelo = paste0("https://geovelo.app/fr/route/?bike-type=own&e-bike=false&from=",
+                         pts[1,]$coords,
+                         "&steps=",
+                         paste(pts[c(2:(nrow(pts)-1)),]$coords, collapse = "%3B"),
+                         "&to=",
+                         pts[nrow(pts),]$coords)
+  }
+  
+  cat(crayon::bold("Lien pour afficher/calculer dans Géovélo : "), crayon::hyperlink(lienGeovelo, lienGeovelo), "\n")
+}
+
+nomSortie = readline("Nom à spécifier pour la sortie (sinon nommage par défaut / x pour ne rien sauvegarder) ? ")
 if (nomSortie == "")
 {
   listeComs = unique(points$ad_com) %>% paste(collapse = ", ")
   nomSortie = paste0("Routes/", Sys.Date(), " - ", listeComs)
 }
 
-st_write(obj = st_transform(routeActuelle, crs=4326)$geometry, dsn = paste0(nomSortie, ".kml"))
-cat(crayon::green(" Sortie exportée en KML. "))
+if (nomSortie != "x")
+{
+  # Procédure pour 2 calques avec les points de passage
+  routeActuelle = st_transform(routeActuelle, crs=4326)$geometry
+  chemin = paste0(nomSortie, ".kml")
+  
+  pts = st_transform(points, crs = 4326)
+  pts$i = c(1:nrow(pts))
+  pts$Name = paste0(pts$i, ") ", pts$ad_voie, ", ", pts$ad_com)
+  pts = select(pts, Name)
+  
+  cat(crayon::green(" Sortie exportée en KML. "))
+}
 
 cat("Au revoir et à bientôt !\n")
