@@ -1,7 +1,73 @@
-# derouteur
-*A small program written in R to make bike routes more complicated for people with time to waste.*
+# dérouteur
+*Un petit outil en R pour rallonger des itinéraires à vélo et occuper son temps libre.*
 
-# How does it work?
+Fonctionne à présent avec les itinéraires à pied.
+
+## Comment ça marche ?
+
+Dérouteur utilise deux sources de données et se lance dans une console, sans interface, parce que pourquoi s'embêter à en faire une ? Il mobilise une base de données des adresses pour sélectionner et ajouter des points de parcours à l'itinéraire initial, et un extrait d'OpenStreetMap pour ajouter des points de parcours aléatoires.
+
+Dérouteur repose également sur une instance d'OSRM en ligne, un calculateur d'itinéraire libre dont le projet est décrit sur cette [page](http://project-osrm.org/). Cela signifie que bien qu'il faille télécharger beaucoup de données pour le faire fonctionner, il lui faut aussi une connexion Internet. J'essayerai sans doute à l'avenir d'inclure à Dérouteur une instance de calcul d'itinéraire locale, mais c'est beaucoup plus compliqué que d'ajouter quelques points de parcours à un itinéraire calculé sur un serveur distant.
+
+Tout d'abord, Dérouteur demande d'indiquer la longueur prévue du parcours et le mode (vélo ou marche). Ensuite, on peut ajouter les points de parcours initiaux. Dérouteur peut complexifier un itinéraire entre deux points (ou plus), mais aussi créer une boucle aléatoire à partir d'un seul point (qui doit être répété deux fois comme point de départ et d'arrivée). Pour entrer les points de parcours, il faut saisir une adresse dans la console, avec une syntaxe spécifique (numéro de rue, rue, commune, les virgules comptent). N'hésitez pas à visiter OpenStreetMap pour vérifier les adresses ; si elles y figurent, ellesd evraient être reconnues. La casse ne compte pas, mais les accents oui, et bien sûr les prénoms quand ils sont spécifiés sur OpenStreetMap (rue Jean Jaurès, pas rue Jaurès). Ensuite, Dérouteur propose un itinéraire de la longueur voulue.
+
+Pour créer un itinéraire aléatoire, Dérouteur ajoute des points de parcours aléatoires à ceux spécifiés en entrée. En sortie, un fichier `.kml` calculé avec l'itinéraire d'OSRM peut être écrit dans le dossier "Routes". Dérouteur affiche également la liste des adresses approximatives des points de parcours ajoutés, et propose de calculer un itinéraire avec les points de parcours aléatoires dans Géovélo.
+
+**NB :** les itinéraires proposés à l'aide d'OSRM ou de tout autre service dépendent de la qualité des données d'OpenStreetMap et du calculateur d'itinéraire. Ils sont en général satisfaisants, mais peuvent s'avérer dangereux, en particulier sur des portions aléatoires, même si Dérouteur ne suggèrera pas d'emprunter des autoroutes ou des pistes d'aéroport. Avant de partir, vérifiez soigneusement la qualité du trajet.
+
+## Comment le faire marcher ?
+
+Dérouteur est actuellement un simple script destiné à être interprété par le programme R, qui doit être installé sur votre ordinateur. Il nécessite aussi un certain nombre de dépendances, que Dérouteur peut installer pour vous s'il détecte qu'ils sont manquants. Si vous utilisez R sous Linux, préférez installer ces dépendances vous mêmes (à l'aide de votre gestionnaire de paquets) car les plus grosses (`tidyverse` et `sf`) sont mises à jour fréquemment et mettent beaucoup de temps à être compilées, il vaut donc mieux qu'elles soient installées comme des paquets systèmes.
+
+Pour télécharger et installer R, rendez-vous sur : [https://www.r-project.org/](https://www.r-project.org/)
+
+Une fois R installé sur l'ordinateur, il faut préparer les données nécessaires au script (les adresses et le graphe routier).
+
+### 1) Préparer les données du script
+
+Dérouteur nécessite deux sources de données :
+
+* un extrait de la Base Nationale des adresses ordinaires (BANO). Téléchargez les fichiers `.csv` correspondant aux départements à visiter sur [ce lien](https://bano.openstreetmap.fr/data/). Ces adresses ne sont disponibles qu'en France. Notez que Dérouteur pré-chargera systématiquement toutes les adresses téléchargées lors de la préparation des données, donc il vaut mieux ne prendre que ce dont on a besoin. Copiez les fichiers `.csv` dans le répertoire "Sources" qu'il faudra créer dans le dossier où vous placerez le script de "Dérouteur".
+* une image régionale d'OpenStreetMap pour préparer le graphe routier. Téléchargez les données correspondant à la région sur [geofabrik.de](https://download.geofabrik.de/) puis décompressez chaque téléchargement dans un sous-dossier séparé à l'intérieur du répertoire "Sources". Par exemple, pour l'Ile-de-France, téléchargez le fichier `.zip` et décompressez-le dans un dossier "Ile-de-France" à l'intérieur du répertoire "Source". Le nom du sous-dossier n'a aucune importance. Dérouteur ira directement chercher les fichiers dont il a besoin à l'intérieur.
+
+Au premier lancement de Dérouteur, le script préparera sa base de données et les convertira en deux fichiers nommés `pool.rds` (contenant un ensemble de points servant à créer les itinéraires aléatoires) et `bano.rds` (contenant les adresses à utiliser pour créer les points de passage). Il n'est pas nécessaire de relancer la préparation des données à chaque fois, mais cela l'est pour mettre à jour les données ou lors d'une grosse mise à jour de Dérouteur.
+
+### 2) Lancer le script
+
+Lancer le script est plus facile ! Il suffit de lancer R (taper "R" dans une console, ou lancer R dans la liste des programmes). Précisez ensuite à R quel est son répertoire de travail au moyen de la commande `setwd()` dans laquelle il faut indiquer où se trouve le script (et, partant, les répertoires contenant les données). Voici le genre de chemin d'accès que vous devriez utiliser sous Linux pour un dossier nommé "Derouteur" dans votre espace utilisateur :
+
+```
+setwd("/home/username/derouteur")
+```
+
+Ou sous Windows :
+
+```
+setwd("C:/Users/Username/Derouteur")
+```
+
+Ensuite, lancez le script en utilisant la commande `source` :
+
+```
+source("derouteur_v3.R")
+```
+
+Il ne devrait pas être nécessaire de taper quoi que ce soit d'autre en langage R, donc il n'est pas nécessaire de le maîtriser pour utiliser Dérouteur.
+
+## Retours
+
+Si vous utilisez Dérouteur, n'hésitez pas à me contacter pour me faire part de vos expériences ! Vous pouvez bien sûr le faire si vous rencontrez des erreurs ou des comportements inattendus.
+
+Profitez bien et bonne découverte de votre région ainsi que de l'univers fascinant des probabilités,
+
+Maxime.
+
+# derouteur
+*A small program written in R to make bike routes more complicated for people with spare time.*
+
+Also works to take a walk now.
+
+## How does it work?
 
 Derouteur uses two sources to be able to be ran directly from a console, without any interface, because I'm to lazy to create one. So it uses an addresses database to select and add waypoints to an initial route and OpenStreetMap to know where else you could go on randomly selected points it will add to the route.
 
