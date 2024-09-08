@@ -624,20 +624,6 @@ while(!satisfait)
 
 cat(paste0(compteurAppels, " appels envoyés à OSRM\n"))
 
-# Pour ne pas avoir de pbs de doublons de noms
-if(file.exists(chemin))
-{
-  i = 2
-  while(file.exists(paste0(nomSortie, " (", i, ").kml")))
-  {
-    i = i + 1
-  }
-  chemin = paste0(nomSortie, " (", i, ").kml")
-}
-
-st_write(routeActuelle, dsn = chemin, driver = "LIBKML", layer = "route")
-st_write(pts, dsn = chemin, driver = "LIBKML", layer = "wp")
-
 if (modeT == "vélo")
 {
   # Préparation URL Géovélo
@@ -668,11 +654,23 @@ nomSortie = readline("Nom à spécifier pour la sortie (sinon nommage par défau
 if (nomSortie == "")
 {
   listeComs = unique(points$ad_com) %>% paste(collapse = ", ")
-  nomSortie = paste0("Routes/", Sys.Date(), " - ", listeComs)
+  nomSortie = paste0(Sys.Date(), " - ", listeComs)
 }
-
 if (nomSortie != "x")
 {
+  nomSortie = paste0("Routes/", nomSortie)
+  
+  # Pour ne pas avoir de pbs de doublons de noms
+  if(file.exists(chemin))
+  {
+    i = 2
+    while(file.exists(paste0(nomSortie, " (", i, ").kml")))
+    {
+      i = i + 1
+    }
+    chemin = paste0(nomSortie, " (", i, ").kml")
+  }
+  
   # Procédure pour 2 calques avec les points de passage
   routeActuelle = st_transform(routeActuelle, crs=4326)$geometry
   chemin = paste0(nomSortie, ".kml")
@@ -681,6 +679,9 @@ if (nomSortie != "x")
   pts$i = c(1:nrow(pts))
   pts$Name = paste0(pts$i, ") ", pts$ad_voie, ", ", pts$ad_com)
   pts = select(pts, Name)
+  
+  st_write(routeActuelle, dsn = chemin, driver = "LIBKML", layer = "route")
+  st_write(pts, dsn = chemin, driver = "LIBKML", layer = "wp")
   
   cat(crayon::green(" Sortie exportée en KML. "))
 }
