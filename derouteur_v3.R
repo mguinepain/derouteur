@@ -661,7 +661,7 @@ if (nomSortie != "x")
   nomSortie = paste0("Routes/", nomSortie)
   
   # Pour ne pas avoir de pbs de doublons de noms
-  if(file.exists(chemin))
+  if(file.exists(paste0(nomSortie, ".kml")))
   {
     i = 2
     while(file.exists(paste0(nomSortie, " (", i, ").kml")))
